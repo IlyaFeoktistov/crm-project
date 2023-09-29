@@ -1,0 +1,88 @@
+version: '3.5'
+services:
+  backend:
+    build:
+      context: ./backend
+    container_name: crm_backend
+    restart: always
+    tty: true
+    env_file:
+      - .env
+    ports:
+      - '9000:9000'
+    volumes:
+      - ./backend:/var/www/html
+    depends_on:
+      - crm_mysql
+      - beanstalkd
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: crm_frontend
+    ports:
+      - '3000:3000'
+    volumes:
+      - ./frontend:/app
+    depends_on:
+      - backend
+
+  crm_nginx:
+    image: nginx:alpine
+    container_name: crm_nginx
+    restart: always
+    tty: true
+    environment:
+      - "APPLICATION_UPSTREAM=backend:9000"
+    volumes:
+      - ./nginx/conf.d/:/etc/nginx/conf.d/
+      - ./nginx/templates/:/etc/nginx/templates/
+      - ./backend/public/:/var/www/html/public/
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - backend
+
+    # MySQL Service
+  crm_mysql:
+    image: library/mysql:8.0
+    container_name: crm_mysql
+    restart: always
+    tty: true
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      SERVICE_NAME: mysql
+    volumes:
+      - MySQLData:/var/lib/mysql
+      - MySQLFiles:/var/lib/mysql-files
+
+  crm_phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: crm_phpmyadmin
+    environment:
+      - PMA_HOST=crm_mysql
+      - PMA_USER=${MYSQL_USER}
+      - PMA_PORT=${MYSQL_PORT}
+      - PMA_PASSWORD=${MYSQL_PASSWORD}
+    ports:
+      - 8080:80
+    restart: always
+
+  beanstalkd:
+    image: schickling/beanstalkd
+    container_name: crm_beanstalkd
+    ports:
+      - '11300:11300'
+
+#Docker Volumes
+volumes:
+  MySQLData:
+    driver: local
+  MySQLFiles:
+    driver: local
